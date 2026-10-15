@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slmet"
+version = "0.1.0"
+description = "Extract tidy min/max temperature data from Sri Lanka Dept. of Meteorology map images"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Nadun Wijekoon" }]
+dependencies = [
+    "numpy>=1.23",
+    "pillow>=9.0",
+    "scikit-image>=0.19",
+    "pandas>=1.5",
+    "matplotlib>=3.5",
+    "scipy>=1.9",
+    "scikit-learn>=1.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/thiyangt/srilankatemperature"
+Repository = "https://github.com/thiyangt/srilankatemperature"
+Issues = "https://github.com/thiyangt/srilankatemperature/issues"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+slmet = "slmet.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+slmet = ["data/*.csv"]
