@@ -11,6 +11,8 @@ which is then filtered by area and roundness and re-inflated.
 """
 from __future__ import annotations
 
+import re
+from collections import Counter
 from dataclasses import dataclass
 
 import numpy as np
@@ -23,6 +25,11 @@ EROSION_RADIUS = 10
 MIN_ERODED_AREA = 1200
 MAX_ERODED_AREA = 6500
 MAX_ASPECT = 1.8
+
+# Bubble-value reading: masks tried per bubble, then voted on.
+RING_FRACTIONS = (0.86, 0.93)      # clip disc radius, as a fraction of the bubble radius
+DARKNESS_RATIOS = (0.45, 0.55, 0.65)  # text = darker than this fraction of the fill
+_STRICT_VALUE = re.compile(r"^-?\d{1,2}\.\d$")
 
 
 @dataclass
@@ -84,30 +91,73 @@ def _sample_fill_color(rgb: np.ndarray, bubble: Bubble) -> tuple[int, int, int]:
     return tuple(int(v) for v in np.median(arr, axis=0))
 
 
+def _crop_around(img: np.ndarray, bubble: Bubble, half: int) -> tuple[np.ndarray, int, int]:
+    y0 = max(0, int(bubble.cy - half))
+    x0 = max(0, int(bubble.cx - half))
+    y1 = min(img.shape[0], int(bubble.cy + half))
+    x1 = min(img.shape[1], int(bubble.cx + half))
+    return img[y0:y1, x0:x1], y0, x0
+
+
+def _fill_relative_text_masks(rgb: np.ndarray, bubble: Bubble) -> list[np.ndarray]:
+    """Text masks thresholded *relative to this bubble's own fill colour*,
+    restricted to a disc inside the ring -- one mask per
+    (ring fraction, darkness ratio) pair.
+
+    JPEG compression bleeds a saturated fill (the deep reds of hot days)
+    into the thin black text strokes, so on those bubbles the text's red
+    channel sits well above the absolute cutoff used by
+    :func:`slmet.ocr.dark_mask_from_rgb` and the digits fragment or vanish
+    (e.g. "34.4" read as "3.4"). Text is instead taken as "much darker than
+    the fill", which holds on every colour from navy to deep red. Clipping to
+    a disc drops the ring and any coastline crossing the bubble; since no
+    single clip radius suits every bubble (too tight clips a wide first
+    digit, too loose keeps ring fragments), several are tried and voted on
+    in :func:`read_bubble_value`.
+    """
+    crop, y0, x0 = _crop_around(rgb, bubble, int(bubble.radius * 1.05))
+    crop = crop.astype(np.float32)
+    yy, xx = np.mgrid[0:crop.shape[0], 0:crop.shape[1]]
+    dist2 = (yy + y0 - bubble.cy) ** 2 + (xx + x0 - bubble.cx) ** 2
+
+    brightest = crop.max(axis=-1)
+    fill_px = crop[(dist2 <= (min(RING_FRACTIONS) * bubble.radius) ** 2) & (brightest > 90)]
+    fill = np.median(fill_px, axis=0) if len(fill_px) > 50 else np.array([200.0, 200.0, 200.0])
+    lum = crop.mean(axis=-1)
+
+    masks = []
+    for ring in RING_FRACTIONS:
+        inside = dist2 <= (ring * bubble.radius) ** 2
+        for ratio in DARKNESS_RATIOS:
+            dark = (lum < ratio * fill.mean()) & (brightest < max(70.0, ratio * fill.max()))
+            masks.append(dark & inside)
+    return masks
+
+
 def read_bubble_value(rgb: np.ndarray, bubble: Bubble, reader: DigitReader,
                        inner_fraction: float = 1.2) -> float | None:
     """Read the numeric label at the bubble's centre.
 
-    Uses an RGB (not grayscale) text mask because low temperatures are
-    plotted on a near-navy fill, on which the black text has almost the same
-    grayscale luminance as the background -- see
-    :func:`slmet.ocr.dark_mask_from_rgb`. The crop is taken slightly larger
-    than the bubble radius (further than its ring) because text sometimes
-    sits close to the ring; components touching the crop border are dropped
-    by the reader as noise, which discards the little that leaks in from the
-    square crop's corners. (A small minority of bubbles -- mostly coastal
-    stations where the coastline runs right up against the marker -- have
-    text touching the ring itself; those are a known, documented gap rather
-    than something this crop geometry alone can resolve.)
+    The bubble is read several times -- with the fill-relative masks from
+    :func:`_fill_relative_text_masks` plus the original absolute RGB mask
+    (:func:`slmet.ocr.dark_mask_from_rgb` on a square crop
+    ``inner_fraction`` x radius) -- and the most common reading wins. Only
+    readings in the maps' exact ``NN.N`` format are voted on first; each
+    individual mask fails on *some* bubbles, but rarely the same way, so
+    the majority is far more reliable than any single mask. If no reading
+    is well-formed, the vote falls back to :func:`_parse_temperature`'s
+    repaired parses, and to ``None`` if even those fail.
     """
-    r = int(bubble.radius * inner_fraction)
-    y0 = max(0, int(bubble.cy - r))
-    y1 = min(rgb.shape[0], int(bubble.cy + r))
-    x0 = max(0, int(bubble.cx - r))
-    x1 = min(rgb.shape[1], int(bubble.cx + r))
-    crop = rgb[y0:y1, x0:x1]
-    digits = reader.read_string(dark_mask_from_rgb(crop))
-    return _parse_temperature(digits)
+    masks = _fill_relative_text_masks(rgb, bubble)
+    crop, _, _ = _crop_around(rgb, bubble, int(bubble.radius * inner_fraction))
+    masks.append(dark_mask_from_rgb(crop))
+    readings = [reader.read_string(m) for m in masks]
+
+    well_formed = [s for s in readings if _STRICT_VALUE.match(s) and -5.0 <= float(s) <= 50.0]
+    if well_formed:
+        return float(Counter(well_formed).most_common(1)[0][0])
+    parsed = [v for v in (_parse_temperature(s) for s in readings) if v is not None]
+    return Counter(parsed).most_common(1)[0][0] if parsed else None
 
 
 def _parse_temperature(digits: str) -> float | None:

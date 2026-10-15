@@ -230,10 +230,14 @@ slmet build-dataset "Original Images" --out temperatures.csv
   but degrades OCR precision on notably lower-resolution source images.
 - The bundled `data/stations.csv` registry was built from this corpus. If
   the department adds/moves a station, rebuild it with `slmet build-stations`.
-- Digit OCR occasionally misreads a bubble in a very small minority of
-  images (e.g. adjacent-bubble crowding); `extract_image()` leaves
-  `temperature_c` as `None` when reading fails or gives a clearly implausible
-  string rather than guessing.
+- Bubble values are read several ways (text thresholded relative to each
+  bubble's own fill colour, at a few clip radii, plus an absolute black
+  mask) and the majority reading wins. This fixed a systematic error on hot,
+  deep-red bubbles, where JPEG blur broke up the digits (e.g. "34.4" read
+  as "3.4"). On 96 hand-checked values from four maps (hot and cold), all
+  are read correctly. Misreads are still possible; `extract_image()` leaves
+  `temperature_c` as `None` when no reading is plausible rather than
+  guessing.
 
 ## Package layout
 
