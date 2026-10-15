@@ -39,7 +39,8 @@ def _cmd_build_dataset(args):
     from .dataset import build_dataset
     from .stations import load_registry
     registry = load_registry(args.stations) if args.stations else None
-    df = build_dataset(args.image_dir, registry=registry, cache_path=args.out)
+    df = build_dataset(args.image_dir, registry=registry, cache_path=args.out,
+                       diagnostics=args.diagnostics)
     print(f"Extracted {len(df)} rows from {args.image_dir} -> {args.out}")
 
 
@@ -73,6 +74,8 @@ def main(argv=None):
     sp.add_argument("image_dir")
     sp.add_argument("--out", required=True)
     sp.add_argument("--stations", default=None, help="Path to a station registry CSV")
+    sp.add_argument("--diagnostics", action="store_true",
+                    help="Also output label_ocr_guess, label_ocr_score and station_source")
     sp.set_defaults(func=_cmd_build_dataset)
 
     args = p.parse_args(argv)

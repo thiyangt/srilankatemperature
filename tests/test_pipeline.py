@@ -67,3 +67,19 @@ def test_extract_image_end_to_end(synthetic_map):
             matched += 1
     # every station's value should have been read correctly at minimum
     assert all(r["temperature_c"] is not None for r in records)
+
+
+def test_extract_image_diagnostics_columns(synthetic_map):
+    registry = build_registry([synthetic_map], n_stations=len(SYNTH_STATIONS),
+                               max_images=1)
+    core = {"date", "measure", "station", "latitude", "longitude",
+            "temperature_c", "source_file"}
+    diag = {"label_ocr_guess", "label_ocr_score", "station_source"}
+
+    plain = extract_image(synthetic_map, registry=registry)
+    assert all(set(r) == core for r in plain)
+
+    full = extract_image(synthetic_map, registry=registry, diagnostics=True)
+    assert all(set(r) == core | diag for r in full)
+    # diagnostics only add columns; the core values are identical
+    assert [{k: r[k] for k in core} for r in full] == plain

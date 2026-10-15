@@ -5,18 +5,23 @@ import os
 
 import pandas as pd
 
-from .extract import Readers, extract_image
+from .extract import DIAGNOSTIC_COLUMNS, Readers, extract_image
 from .stations import discover_image_paths, load_registry
 
 TIDY_COLUMNS = [
     "date", "measure", "station", "latitude", "longitude", "temperature_c",
-    "source_file", "label_ocr_guess", "label_ocr_score", "station_source",
+    "source_file",
 ]
 
 
 def build_dataset(image_dir: str, registry: pd.DataFrame | None = None,
-                   cache_path: str | None = None, verbose: bool = True) -> pd.DataFrame:
-    """Extract every image in ``image_dir`` into one long, tidy DataFrame."""
+                   cache_path: str | None = None, verbose: bool = True,
+                   diagnostics: bool = False) -> pd.DataFrame:
+    """Extract every image in ``image_dir`` into one long, tidy DataFrame.
+
+    ``diagnostics=True`` adds the per-record QA columns described in
+    :func:`slmet.extract.extract_image`.
+    """
     registry = registry if registry is not None else load_registry()
     readers = Readers()
     paths = discover_image_paths(image_dir)
@@ -25,14 +30,15 @@ def build_dataset(image_dir: str, registry: pd.DataFrame | None = None,
     errors = []
     for i, path in enumerate(paths):
         try:
-            rows.extend(extract_image(path, registry=registry, readers=readers))
+            rows.extend(extract_image(path, registry=registry, readers=readers,
+                                      diagnostics=diagnostics))
         except Exception as e:
             errors.append((path, str(e)))
         if verbose and (i + 1) % 25 == 0:
             print(f"  processed {i + 1}/{len(paths)} images "
                   f"({len(errors)} errors so far)")
 
-    df = pd.DataFrame(rows, columns=TIDY_COLUMNS)
+    df = pd.DataFrame(rows, columns=TIDY_COLUMNS + (DIAGNOSTIC_COLUMNS if diagnostics else []))
     df = df.sort_values(["date", "measure", "station"]).reset_index(drop=True)
 
     if errors and verbose:

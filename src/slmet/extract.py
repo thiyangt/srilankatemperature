@@ -22,6 +22,9 @@ from .ocr import DigitReader, VocabularyReader
 from .stations import assign_station, load_registry
 from .title import read_title
 
+# Per-record QA columns, only included when ``diagnostics=True``.
+DIAGNOSTIC_COLUMNS = ["label_ocr_guess", "label_ocr_score", "station_source"]
+
 
 @dataclass
 class Readers:
@@ -35,12 +38,16 @@ class Readers:
 
 def extract_image(path: str, registry: pd.DataFrame | None = None,
                    readers: Readers | None = None,
-                   min_label_confidence: float = 0.0) -> list[dict]:
+                   min_label_confidence: float = 0.0,
+                   diagnostics: bool = False) -> list[dict]:
     """Extract one tidy record per detected station bubble in ``path``.
 
     Each record has: date, measure, station, latitude, longitude,
-    temperature_c, source_file, plus a couple of QA columns (label_score,
-    station_source) that are useful for auditing but not required reading.
+    temperature_c, source_file. With ``diagnostics=True`` it also has
+    label_ocr_guess / label_ocr_score (the station name read from the text
+    beside the bubble, and its match score) and station_source ("position"
+    or "ocr_fallback") -- useful for auditing, but the station itself is
+    resolved by position, so these aren't needed for analysis.
     """
     readers = readers or Readers()
     if registry is None:
@@ -57,7 +64,12 @@ def extract_image(path: str, registry: pd.DataFrame | None = None,
         lon, lat = geo.to_lonlat(b.cx, b.cy)
         station = assign_station(lon, lat, registry)
         temp = read_bubble_value(rgb, b, readers.digit)
-        label_word, label_score = read_bubble_label(gray, b, readers.station_vocab)
+
+        # The label read only matters as a fallback (or when asked for), so
+        # skip it for bubbles that matched a known position.
+        label_word, label_score = "", -1.0
+        if station is None or diagnostics:
+            label_word, label_score = read_bubble_label(gray, b, readers.station_vocab)
 
         station_source = "position"
         if station is None:
@@ -82,4 +94,8 @@ def extract_image(path: str, registry: pd.DataFrame | None = None,
     if min_label_confidence > 0:
         records = [r for r in records if r["label_ocr_score"] >= min_label_confidence
                    or r["station_source"] == "position"]
+    if not diagnostics:
+        for r in records:
+            for col in DIAGNOSTIC_COLUMNS:
+                del r[col]
     return records

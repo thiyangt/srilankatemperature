@@ -67,9 +67,15 @@ rows = extract_image("Maximum Temperature - 2026-01-01.jpg")
 ```
 
 You get one record per station with `date`, `measure` (Minimum or Maximum),
-`station`, `latitude`, `longitude`, `temperature_c` and `source_file`, plus
-two quality-check columns. If a value can't be read reliably,
-`temperature_c` is `None` rather than a guess.
+`station`, `latitude`, `longitude`, `temperature_c` and `source_file`. If a
+value can't be read reliably, `temperature_c` is `None` rather than a guess.
+
+For auditing, pass `diagnostics=True` (to `extract_image` or
+`build_dataset`, or `--diagnostics` on the command line) to also get
+`label_ocr_guess` / `label_ocr_score` (the station name read from the text
+beside each bubble, and how well it matched) and `station_source`. The
+station is identified by the bubble's position, not by this label reading,
+so these columns aren't needed for analysis.
 
 **Feature 2: Convert a whole folder into one table.**
 
