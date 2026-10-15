@@ -8,25 +8,135 @@ scikit-image, because every map is rendered by the department's own fixed
 matplotlib script: same layout, same DejaVu Sans font, same ~24 weather
 collection centres, every day. That regularity is what the package exploits.
 
-## Install
+## Getting started: a step-by-step guide
 
-Straight from GitHub:
+### Step 1: Check what you need
+
+- **Python 3.9 or newer**: check with `python --version`.
+- **Git**: needed to install straight from GitHub. Check with `git --version`.
+- **Map images**: this repo already includes every map from 2026-01-01 to
+  2026-09-07 (`Original Images/`). Maps you download yourself also work.
+
+### Step 2: Install
+
+Choose one option. A virtual environment (`python -m venv .venv`) or a conda
+environment is recommended.
+
+**A. Just use the library:**
 
 ```bash
 pip install git+https://github.com/thiyangt/srilankatemperature.git
 ```
 
-Or from a local clone (editable, for development):
+**B. Get the code, the images and the dataset too:** the clone is about
+200 MB because it includes the images.
 
 ```bash
 git clone https://github.com/thiyangt/srilankatemperature.git
 cd srilankatemperature
 pip install -e ".[dev]"
-pytest
 ```
 
-(installs `numpy`, `pillow`, `scikit-image`, `pandas`, `matplotlib`,
-`scipy`, `scikit-learn`)
+Both options install the dependencies automatically: `numpy`, `pillow`,
+`scikit-image`, `pandas`, `matplotlib`, `scipy` and `scikit-learn`.
+
+### Step 3: Check that it works
+
+```bash
+slmet --help
+python -c "import slmet; print(slmet.__version__)"   # 0.1.0
+```
+
+If you chose option B, you can also run `pytest`. All tests should pass.
+
+### Step 4: Use it
+
+**If you only want the data**, you don't need to run anything.
+`temperatures.csv` in this repo already covers 2026-01-01 to 2026-09-07:
+
+```python
+import pandas as pd
+df = pd.read_csv("temperatures.csv")
+```
+
+**Feature 1: Read a single map.**
+
+```python
+from slmet import extract_image
+rows = extract_image("Maximum Temperature - 2026-01-01.jpg")
+```
+
+You get one record per station with `date`, `measure` (Minimum or Maximum),
+`station`, `latitude`, `longitude`, `temperature_c` and `source_file`, plus
+two quality-check columns. If a value can't be read reliably,
+`temperature_c` is `None` rather than a guess.
+
+**Feature 2: Convert a whole folder into one table.**
+
+```python
+from slmet import build_dataset
+df = build_dataset("Original Images", cache_path="temperatures.csv")
+```
+
+Or from the command line:
+`slmet build-dataset "Original Images" --out temperatures.csv`
+
+**Feature 3: Rename raw downloads.** Downloaded images have meaningless names
+like `606000882_..._n.jpg`. This reads each map's title and copies it as
+`Maximum Temperature - 2026-01-01.jpg`, skipping duplicate downloads.
+
+```bash
+slmet ingest "Original Images" "Renamed"
+```
+
+In Python, `rename_and_copy(src, dst)` does the same and returns a report of
+which files were copied and which were skipped.
+
+**Feature 4: Find missing days.**
+
+```bash
+slmet missing "Renamed" --start 2026-01-01 --end 2026-09-07
+```
+
+This lists every (date, Minimum/Maximum) pair with no image. In Python, use
+`find_missing_in_dir(...)`, or `find_missing_in_dataset(df, start, end)` to
+check a dataset you've already built.
+
+**Feature 5: Put min and max side by side.**
+
+```python
+from slmet import to_wide
+wide = to_wide(df)   # one row per date + station, with tmin_c and tmax_c columns
+```
+
+**Feature 6: Convert pixel positions to longitude/latitude.** This uses the
+map's own axis labels, so nothing is hard-coded.
+
+```python
+from slmet import calibrate
+from slmet.imaging import load_gray_rgb, detect_frame
+
+gray, rgb = load_gray_rgb("map.jpg")
+geo = calibrate(gray, detect_frame(gray))
+lon, lat = geo.to_lonlat(px=800, py=500)
+```
+
+**Feature 7: Rebuild the station list.** The package comes with the 24
+stations, from Jaffna to Galle. You only need this if the department adds or
+moves a station:
+
+```bash
+slmet build-stations "Original Images" --out stations.csv
+```
+
+### Good to know
+
+- **No OCR software is needed.** No Tesseract, EasyOCR or online service;
+  everything runs locally.
+- **New images aren't downloaded for you.** To extend the dataset, download
+  new maps, put them in a folder and run Feature 2.
+- See [Known data gaps](#known-data-gaps) and
+  [Known limitations](#known-limitations) below.
 
 ## What it does
 
