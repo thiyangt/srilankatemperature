@@ -70,6 +70,17 @@ def detect_bubbles(gray: np.ndarray, frame: Frame, scale: float | None = None) -
             cx=cx + frame.left, cy=cy + frame.top, radius=radius,
             fill_rgb=(0, 0, 0),
         ))
+
+    # Every bubble is the same matplotlib marker size, but the eroded-area
+    # estimate above only ever *under*-shoots it (text, a crossing coastline
+    # or a pale fill near the white threshold all eat into the eroded disc)
+    # -- by up to ~25% on some bubbles. An undersized radius clips the value
+    # text when it is read, typically dropping the leading digit ("22.4" ->
+    # "2.4"), so use the image's typical bubble size for every bubble.
+    if bubbles:
+        typical = float(np.percentile([b.radius for b in bubbles], 90))
+        for b in bubbles:
+            b.radius = max(b.radius, typical)
     return bubbles
 
 

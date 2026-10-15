@@ -234,8 +234,10 @@ slmet build-dataset "Original Images" --out temperatures.csv
   bubble's own fill colour, at a few clip radii, plus an absolute black
   mask) and the majority reading wins. This fixed a systematic error on hot,
   deep-red bubbles, where JPEG blur broke up the digits (e.g. "34.4" read
-  as "3.4"). On 96 hand-checked values from four maps (hot and cold), all
-  are read correctly. Misreads are still possible; `extract_image()` leaves
+  as "3.4"). Bubble size is also taken as the image's typical marker size,
+  since per-bubble estimates ran small and clipped the leading digit on pale
+  bubbles ("22.4" read as "2.4"). On 96 hand-checked values from four maps
+  (hot and cold), all are read correctly. Misreads are still possible; `extract_image()` leaves
   `temperature_c` as `None` when no reading is plausible rather than
   guessing.
 
