@@ -15,7 +15,6 @@ persisted once as ``data/stations.csv`` and shipped with the package;
 """
 from __future__ import annotations
 
-import glob
 import os
 from collections import Counter
 
@@ -25,7 +24,7 @@ from sklearn.cluster import KMeans
 
 from .bubbles import detect_bubbles, read_bubble_label
 from .calibration import calibrate
-from .config import KNOWN_STATIONS
+from .config import IMAGE_EXTENSIONS, KNOWN_STATIONS
 from .imaging import detect_frame, load_gray_rgb
 from .ocr import DigitReader, VocabularyReader
 
@@ -131,5 +130,5 @@ def assign_station(lon: float, lat: float, registry: pd.DataFrame,
 
 
 def discover_image_paths(image_dir: str) -> list[str]:
-    return sorted(glob.glob(os.path.join(image_dir, "*.jpg")) +
-                  glob.glob(os.path.join(image_dir, "*.jpeg")))
+    return sorted(os.path.join(image_dir, f) for f in os.listdir(image_dir)
+                  if f.lower().endswith(IMAGE_EXTENSIONS))

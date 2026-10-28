@@ -38,3 +38,7 @@ MEASURE_SHORT = {"Minimum": "Min", "Maximum": "Max"}
 DIGIT_CHARSET = "0123456789.-:"
 
 DEFAULT_DATE_START = "2026-01-01"
+
+# Source image extensions picked up from a folder. Facebook downloads are
+# sometimes saved as ".png" even when the content is a JPEG.
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")

@@ -85,3 +85,22 @@ def test_download_converts_non_jpeg_via_file_url(tmp_path):
     with Image.open(dl / "map.jpg") as img:
         assert img.format == "JPEG"
         assert img.size == (40, 30)
+
+
+def test_ingest_accepts_png_files(tmp_path):
+    src = tmp_path / "raw"
+    src.mkdir()
+    # a JPEG saved with a ".png" name (as Facebook downloads sometimes are)
+    make_synthetic_map(str(src / "mislabelled.png"), measure="Minimum", date="02-01-2026")
+    # and a genuine PNG
+    jpg = tmp_path / "max.jpg"
+    make_synthetic_map(str(jpg), measure="Maximum", date="02-01-2026")
+    Image.open(jpg).save(src / "real.png", format="PNG")
+
+    renamed = tmp_path / "renamed"
+    report = rename_and_copy(str(src), str(renamed))
+    assert set(report["status"]) == {"copied"}
+    for name in ["Maximum Temperature - 2026-01-02.jpg",
+                 "Minimum Temperature - 2026-01-02.jpg"]:
+        with Image.open(renamed / name) as img:
+            assert img.format == "JPEG"

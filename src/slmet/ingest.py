@@ -12,6 +12,8 @@ import shutil
 
 import pandas as pd
 
+from .config import IMAGE_EXTENSIONS
+from .download import _to_jpeg_bytes
 from .imaging import detect_frame, load_gray_rgb
 from .ocr import DigitReader
 from .title import read_title
@@ -27,8 +29,9 @@ def _file_hash(path: str, chunk: int = 65536) -> str:
 
 def rename_and_copy(src_dir: str, dst_dir: str, overwrite: bool = False,
                      digit_reader: DigitReader | None = None) -> pd.DataFrame:
-    """Copy every ``*.jpg``/``*.jpeg`` in ``src_dir`` into ``dst_dir`` under
-    the ``"<Measure> Temperature - YYYY-MM-DD.jpg"`` naming scheme.
+    """Copy every ``*.jpg``/``*.jpeg``/``*.png`` in ``src_dir`` into
+    ``dst_dir`` under the ``"<Measure> Temperature - YYYY-MM-DD.jpg"`` naming
+    scheme. Files that aren't JPEG inside are re-encoded as JPEG.
 
     Returns a report DataFrame with one row per source file: the new name,
     whether it was written/skipped, and why (e.g. a duplicate content hash,
@@ -39,7 +42,7 @@ def rename_and_copy(src_dir: str, dst_dir: str, overwrite: bool = False,
 
     src_files = sorted(
         f for f in os.listdir(src_dir)
-        if f.lower().endswith((".jpg", ".jpeg"))
+        if f.lower().endswith(IMAGE_EXTENSIONS)
     )
 
     seen_hashes: dict[str, str] = {}  # content hash -> first source file
@@ -71,7 +74,14 @@ def rename_and_copy(src_dir: str, dst_dir: str, overwrite: bool = False,
                 rows.append(row)
                 continue
 
-            shutil.copy2(src_path, dst_path)
+            with open(src_path, "rb") as f:
+                data = f.read()
+            jpeg = _to_jpeg_bytes(data)
+            if jpeg is data:
+                shutil.copy2(src_path, dst_path)
+            else:
+                with open(dst_path, "wb") as f:
+                    f.write(jpeg)
             row["status"] = "copied"
         except Exception as e:
             row["status"] = f"error:{e}"

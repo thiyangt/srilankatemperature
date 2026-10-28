@@ -15,7 +15,7 @@ collection centres, every day. That regularity is what the package exploits.
 - **Python 3.9 or newer**: check with `python --version`.
 - **Git**: needed to install straight from GitHub. Check with `git --version`.
 - **Map images**: this repo already includes every map from 2026-01-01 to
-  2026-09-07 (`Original Images/`). Maps you download yourself also work.
+  2026-10-28 (`Original Images/`). Maps you download yourself also work.
 
 ### Step 2: Install
 
@@ -52,7 +52,7 @@ If you chose option B, you can also run `pytest`. All tests should pass.
 ### Step 4: Use it
 
 **If you only want the data**, you don't need any images or CSV files. The
-full dataset (2026-01-01 to 2026-09-07) ships inside the package, so it
+full dataset (2026-01-01 to 2026-10-28) ships inside the package, so it
 works with either install option:
 
 ```python
@@ -130,7 +130,7 @@ which files were copied and which were skipped.
 **Feature 5: Find missing days.**
 
 ```bash
-slmet missing "Renamed" --start 2026-01-01 --end 2026-09-07
+slmet missing "Renamed" --start 2026-01-01 --end 2026-10-28
 ```
 
 This lists every (date, Minimum/Maximum) pair with no image. In Python, use
@@ -258,7 +258,7 @@ slmet build-dataset "Original Images" --out src/slmet/data/temperatures.csv
   day/measure (only the Maximum map exists), so `temperatures.csv` has no
   `2026-07-07,Minimum` rows. This is a gap in the department's postings, not
   an extraction failure. The dataset otherwise covers every
-  `[2026-01-01, 2026-09-07] x {Minimum, Maximum}` day for which an image
+  `[2026-01-01, 2026-10-28] x {Minimum, Maximum}` day for which an image
   exists.
 
 ## Known limitations
