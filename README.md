@@ -51,13 +51,18 @@ If you chose option B, you can also run `pytest`. All tests should pass.
 
 ### Step 4: Use it
 
-**If you only want the data**, you don't need to run anything.
-`temperatures.csv` in this repo already covers 2026-01-01 to 2026-09-07:
+**If you only want the data**, you don't need any images or CSV files. The
+full dataset (2026-01-01 to 2026-09-07) ships inside the package, so it
+works with either install option:
 
 ```python
-import pandas as pd
-df = pd.read_csv("temperatures.csv")
+import slmet
+df = slmet.load_temperatures()            # long: one row per date, measure, station
+wide = slmet.load_temperatures(wide=True) # one row per date + station, tmin_c / tmax_c
 ```
+
+The same file is in the repo at
+[`src/slmet/data/temperatures.csv`](src/slmet/data/temperatures.csv).
 
 **Feature 1: Read a single map.**
 
@@ -87,7 +92,31 @@ df = build_dataset("Original Images", cache_path="temperatures.csv")
 Or from the command line:
 `slmet build-dataset "Original Images" --out temperatures.csv`
 
-**Feature 3: Rename raw downloads.** Downloaded images have meaningless names
+Byte-identical repeat downloads (e.g. `map (1).jpg`) are skipped, so a map
+saved twice isn't counted twice.
+
+**Feature 3: Download images from URLs.** As well as folders of manually
+downloaded images, you can give the package direct image links. Each one is
+saved into a folder as a `.jpg`, ready for Features 2 and 4. Links that fail
+or don't return an image (e.g. a login page) are reported, not saved.
+
+```python
+from slmet import download_images
+report = download_images(["https://.../map1.jpg", "https://.../map2.jpg"], "Downloads")
+```
+
+```bash
+slmet download Downloads https://.../map1.jpg https://.../map2.jpg
+slmet download Downloads --url-file urls.txt   # one URL per line
+```
+
+The department has no image archive on its website; its maps are only
+posted on Facebook. Downloading those by hand is the recommended route,
+since scraping Facebook automatically raises access and security issues.
+This function is for direct image links you already have, and for any
+archive the department publishes in future.
+
+**Feature 4: Rename raw downloads.** Downloaded images have meaningless names
 like `606000882_..._n.jpg`. This reads each map's title and copies it as
 `Maximum Temperature - 2026-01-01.jpg`, skipping duplicate downloads.
 
@@ -98,7 +127,7 @@ slmet ingest "Original Images" "Renamed"
 In Python, `rename_and_copy(src, dst)` does the same and returns a report of
 which files were copied and which were skipped.
 
-**Feature 4: Find missing days.**
+**Feature 5: Find missing days.**
 
 ```bash
 slmet missing "Renamed" --start 2026-01-01 --end 2026-09-07
@@ -108,14 +137,14 @@ This lists every (date, Minimum/Maximum) pair with no image. In Python, use
 `find_missing_in_dir(...)`, or `find_missing_in_dataset(df, start, end)` to
 check a dataset you've already built.
 
-**Feature 5: Put min and max side by side.**
+**Feature 6: Put min and max side by side.**
 
 ```python
 from slmet import to_wide
 wide = to_wide(df)   # one row per date + station, with tmin_c and tmax_c columns
 ```
 
-**Feature 6: Convert pixel positions to longitude/latitude.** This uses the
+**Feature 7: Convert pixel positions to longitude/latitude.** This uses the
 map's own axis labels, so nothing is hard-coded.
 
 ```python
@@ -127,7 +156,7 @@ geo = calibrate(gray, detect_frame(gray))
 lon, lat = geo.to_lonlat(px=800, py=500)
 ```
 
-**Feature 7: Rebuild the station list.** The package comes with the 24
+**Feature 8: Rebuild the station list.** The package comes with the 24
 stations, from Jaffna to Galle. You only need this if the department adds or
 moves a station:
 
@@ -139,13 +168,15 @@ slmet build-stations "Original Images" --out stations.csv
 
 - **No OCR software is needed.** No Tesseract, EasyOCR or online service;
   everything runs locally.
-- **New images aren't downloaded for you.** To extend the dataset, download
-  new maps, put them in a folder and run Feature 2.
+- **To extend the dataset**, save new maps into a folder (by hand, or with
+  Feature 3 if you have direct links) and run Feature 2.
 - See [Known data gaps](#known-data-gaps) and
   [Known limitations](#known-limitations) below.
 
 ## What it does
 
+0. **Acquire** — work from a folder of manually downloaded images, or fetch
+   images from direct URLs with `download_images()`.
 1. **Ingest / rename** — copy raw downloaded images into
    `<Minimum|Maximum> Temperature - YYYY-MM-DD.jpg`, read straight off each
    image's own title (no manual renaming, no relying on the download
@@ -160,7 +191,7 @@ slmet build-stations "Original Images" --out stations.csv
    rather than hard-coded.
 4. **Build the whole dataset** — run extraction over every downloaded image
    and get one long, tidy `DataFrame` / CSV covering everything published so
-   far.
+   far. The result ships with the package as `load_temperatures()`.
 
 ## Quickstart (Python API)
 
@@ -195,10 +226,11 @@ lon, lat = geo.to_lonlat(px=800, py=500)
 ## CLI
 
 ```bash
+slmet download "Downloads" --url-file urls.txt
 slmet ingest "Original Images" "Renamed"
 slmet missing "Renamed" --start 2026-01-01 --end 2026-08-07
 slmet build-stations "Original Images" --out src/slmet/data/stations.csv
-slmet build-dataset "Original Images" --out temperatures.csv
+slmet build-dataset "Original Images" --out src/slmet/data/temperatures.csv
 ```
 
 ## How the OCR works (no Tesseract/EasyOCR)
@@ -258,9 +290,11 @@ src/slmet/
   title.py         title parsing -> (measure, date)
   stations.py      canonical station registry (clustering + naming)
   extract.py       extract_image() — one map -> tidy records
+  download.py      download_images() — image URLs -> local .jpg files
   ingest.py        rename_and_copy() — raw downloads -> named copies
   missing.py       find_missing_in_dir() / find_missing_in_dataset()
-  dataset.py       build_dataset() — whole corpus -> tidy DataFrame/CSV
+  dataset.py       build_dataset() / load_temperatures() — corpus -> tidy data
   cli.py           `slmet` command-line entry point
   data/stations.csv  bundled canonical station registry
+  data/temperatures.csv  bundled tidy dataset (load_temperatures())
 ```

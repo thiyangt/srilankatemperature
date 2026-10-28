@@ -7,6 +7,20 @@ import sys
 from .config import DEFAULT_DATE_START
 
 
+def _cmd_download(args):
+    from .download import download_images
+    urls = list(args.urls)
+    if args.url_file:
+        with open(args.url_file, encoding="utf-8") as f:
+            urls += [line for line in f if line.strip() and not line.lstrip().startswith("#")]
+    if not urls:
+        sys.exit("slmet download: give at least one URL or --url-file")
+    report = download_images(urls, args.dst, overwrite=args.overwrite)
+    if args.report_csv:
+        report.to_csv(args.report_csv, index=False)
+    print(report.to_string(index=False))
+
+
 def _cmd_ingest(args):
     from .ingest import rename_and_copy
     report = rename_and_copy(args.src, args.dst, overwrite=args.overwrite)
@@ -49,6 +63,14 @@ def main(argv=None):
         "Extract tidy min/max temperature data from Sri Lanka Dept. of "
         "Meteorology map images."))
     sub = p.add_subparsers(dest="command", required=True)
+
+    sp = sub.add_parser("download", help="Download map images from direct URLs into a folder")
+    sp.add_argument("dst", help="Destination directory for downloaded images")
+    sp.add_argument("urls", nargs="*", help="Image URLs")
+    sp.add_argument("--url-file", default=None, help="Text file with one URL per line ('#' lines ignored)")
+    sp.add_argument("--overwrite", action="store_true")
+    sp.add_argument("--report-csv", default=None)
+    sp.set_defaults(func=_cmd_download)
 
     sp = sub.add_parser("ingest", help="Rename/copy raw images into '<Measure> Temperature - YYYY-MM-DD.jpg'")
     sp.add_argument("src", help="Directory of raw downloaded images")

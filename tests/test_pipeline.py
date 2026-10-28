@@ -83,3 +83,18 @@ def test_extract_image_diagnostics_columns(synthetic_map):
     assert all(set(r) == core | diag for r in full)
     # diagnostics only add columns; the core values are identical
     assert [{k: r[k] for k in core} for r in full] == plain
+
+
+def test_build_dataset_skips_duplicate_downloads(synthetic_map, tmp_path):
+    import shutil
+    from slmet.dataset import build_dataset
+
+    d = tmp_path / "images"
+    d.mkdir()
+    shutil.copy(synthetic_map, d / "map.jpg")
+    shutil.copy(synthetic_map, d / "map (1).jpg")   # repeat download
+    registry = build_registry([synthetic_map], n_stations=len(SYNTH_STATIONS),
+                               max_images=1)
+    df = build_dataset(str(d), registry=registry, verbose=False)
+    assert len(df) == len(SYNTH_STATIONS)
+    assert not df.duplicated(["date", "measure", "station"]).any()
