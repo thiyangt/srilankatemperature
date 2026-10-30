@@ -8,6 +8,87 @@ scikit-image, because every map is rendered by the department's own fixed
 matplotlib script: same layout, same DejaVu Sans font, same ~24 weather
 collection centres, every day. That regularity is what the package exploits.
 
+## Introduction
+
+The Sri Lanka Department of Meteorology posts two maps on its Facebook page
+every day: one showing the **minimum** and one showing the **maximum**
+temperature recorded at about 24 weather stations across the island. The
+numbers exist only as text drawn on an image. The department's website keeps
+no archive of the maps, and historical data in CSV form is available only on
+paid request.
+
+This project turns those public images into a reusable dataset. `slmet` is a
+Python package that reads each map, finds every station's bubble, works out
+its latitude and longitude, reads the temperature written inside it, and
+returns tidy rows ready for analysis. The extracted dataset, currently
+**2026-01-01 to 2026-10-28** (601 maps, 14,369 station readings), ships inside
+the package, so anyone can use it without collecting images themselves.
+
+## Objectives
+
+1. **Data acquisition.** Collect the daily minimum and maximum temperature
+   maps from 1 January 2026 onwards. Support both manually downloaded images
+   and downloading from a given image URL.
+2. **Data extraction.** Read each station's name, latitude, longitude and
+   temperature from the map images, without relying on an external OCR
+   engine or online service.
+3. **Data cleaning and tidying.** Produce one tidy table (one row per date,
+   measure and station) with minimum and maximum temperatures stored
+   separately. Flag unreadable values as missing rather than guessing, remove
+   duplicate downloads, and report days with no published map.
+4. **Package development.** Deliver the workflow as an installable Python
+   package with a Python API and a command-line tool, with the dataset
+   bundled so it can be loaded in one line.
+5. **Reproducibility.** Let anyone rebuild the full dataset from the images
+   with a single command, and back the pipeline with automated tests.
+
+## Workflow
+
+```
+ Facebook / image URLs
+          │  manual download, or download_images()
+          ▼
+ Original Images/        raw files, meaningless names
+          │  rename_and_copy()    reads each map's title -> measure + date
+          ▼
+ Renamed Images/         "Maximum Temperature - 2026-01-01.jpg"
+          │  find_missing_in_dir()  reports days with no map
+          │  extract_image()        per map: axes -> lon/lat, bubbles -> values
+          ▼
+ build_dataset()         all maps -> one tidy table, duplicates skipped
+          ▼
+ temperatures.csv        bundled in the package -> load_temperatures()
+```
+
+1. **Acquire.** Save the day's maps by hand into `Original Images/`, or fetch
+   them from direct image links with `download_images()` /
+   `slmet download`.
+2. **Ingest and rename.** `rename_and_copy()` reads each image's own title
+   (measure and date) and copies it as
+   `<Minimum|Maximum> Temperature - YYYY-MM-DD.jpg`, skipping byte-identical
+   repeat downloads.
+3. **Check coverage.** `find_missing_in_dir()` compares the files against
+   every expected (date, measure) pair and lists any gaps.
+4. **Extract.** `extract_image()` processes one map end to end:
+   - finds the plot's frame and fits a pixel → longitude/latitude transform
+     from the map's own axis tick labels (`calibrate()`);
+   - detects each station's coloured bubble;
+   - names the station by its position, using a registry of 24 stations
+     built by clustering bubble positions across many maps;
+   - reads the temperature inside the bubble with a purpose-built digit
+     reader (template matching on the map's DejaVu Sans font).
+5. **Clean and tidy.** `build_dataset()` runs extraction over every map and
+   returns one long table: `date, measure, station, latitude, longitude,
+   temperature_c, source_file`. Values that can't be read reliably are left
+   empty instead of guessed, and duplicate images are skipped.
+   `to_wide()` gives one row per date and station with `tmin_c` and `tmax_c`.
+6. **Package and share.** The result is saved as
+   `src/slmet/data/temperatures.csv` and installed with the package, so users
+   just run `slmet.load_temperatures()`.
+7. **Validate.** Automated tests (`pytest`) cover each stage on synthetic maps
+   and the bundled dataset; extracted values were also hand-checked against
+   the original maps.
+
 ## Getting started: a step-by-step guide
 
 ### Step 1: Check what you need
@@ -172,26 +253,6 @@ slmet build-stations "Original Images" --out stations.csv
   Feature 3 if you have direct links) and run Feature 2.
 - See [Known data gaps](#known-data-gaps) and
   [Known limitations](#known-limitations) below.
-
-## What it does
-
-0. **Acquire** — work from a folder of manually downloaded images, or fetch
-   images from direct URLs with `download_images()`.
-1. **Ingest / rename** — copy raw downloaded images into
-   `<Minimum|Maximum> Temperature - YYYY-MM-DD.jpg`, read straight off each
-   image's own title (no manual renaming, no relying on the download
-   filename).
-2. **Find missing days** — diff what's on disk (or in the dataset) against
-   the full expected `[start, end] x {Minimum, Maximum}` grid.
-3. **Extract location + temperature from a map image** — the core ask:
-   `extract_image()` reads one JPEG and returns one row per weather station
-   with its **name, latitude, longitude, and temperature**, tidy and ready
-   for `pandas`. `calibrate()` is the standalone "identify longitude and
-   latitude" function, fitted per image from the plot's own axis ticks
-   rather than hard-coded.
-4. **Build the whole dataset** — run extraction over every downloaded image
-   and get one long, tidy `DataFrame` / CSV covering everything published so
-   far. The result ships with the package as `load_temperatures()`.
 
 ## Quickstart (Python API)
 
