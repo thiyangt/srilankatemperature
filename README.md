@@ -1,7 +1,7 @@
 # slmet
 
 Extract a tidy min/max temperature dataset from the Sri Lanka Department of
-Meteorology's daily map images — **no external OCR engine required**
+Meteorology's daily map images. **No external OCR engine is required**
 (no Tesseract, no EasyOCR, no cloud API). Everything, including the text and
 number reading, is implemented from scratch on top of numpy/Pillow/
 scikit-image, because every map is rendered by the department's own fixed
@@ -296,13 +296,13 @@ slmet build-dataset "Original Images" --out src/slmet/data/temperatures.csv
 
 ## How the OCR works (no Tesseract/EasyOCR)
 
-- **`DigitReader`** — per-glyph template matching restricted to the closed
+- **`DigitReader`:** per-glyph template matching restricted to the closed
   charset `0-9 . -` (tick labels, bubble values, dates). A tiny known
   charset makes this reliable even on JPEG-compressed anti-aliased text.
   Bubble-value text is read from an **RGB** mask (not grayscale), because
   the coldest bubbles are filled near-navy, where black text and background
   have almost the same grayscale luminance but very different RGB.
-- **`VocabularyReader`** — whole-word template matching against a *finite*
+- **`VocabularyReader`:** whole-word template matching against a *finite*
   known vocabulary (station names, "Minimum"/"Maximum"). Since the space of
   possible answers is small and known ahead of time, matching a crop against
   every candidate's rendered reference beats segmenting individual letters.
@@ -310,12 +310,12 @@ slmet build-dataset "Original Images" --out src/slmet/data/temperatures.csv
   station's bubble lands in almost exactly the same spot every day, so
   `slmet.stations.build_registry()` clusters bubble positions across many
   images (k-means) and names each cluster by a majority vote of per-image
-  label OCR — far more robust than trusting any single image's label
+  label OCR. This is far more robust than trusting any single image's label
   reading. Per-day extraction then just does nearest-cluster lookup.
 
 ## Known data gaps
 
-- **2026-07-07 Minimum** — no source image was ever published for this
+- **2026-07-07 Minimum:** no source image was ever published for this
   day/measure (only the Maximum map exists), so `temperatures.csv` has no
   `2026-07-07,Minimum` rows. This is a gap in the department's postings, not
   an extraction failure. The dataset otherwise covers every
@@ -346,15 +346,15 @@ slmet build-dataset "Original Images" --out src/slmet/data/temperatures.csv
 src/slmet/
   imaging.py       image loading + axes-frame detection
   ocr.py           from-scratch digit + vocabulary OCR
-  calibration.py   pixel -> (longitude, latitude) — the "identify lon/lat" function
+  calibration.py   pixel -> (longitude, latitude), the "identify lon/lat" function
   bubbles.py       bubble (circle) detection + value/label reading
   title.py         title parsing -> (measure, date)
   stations.py      canonical station registry (clustering + naming)
-  extract.py       extract_image() — one map -> tidy records
-  download.py      download_images() — image URLs -> local .jpg files
-  ingest.py        rename_and_copy() — raw downloads -> named copies
+  extract.py       extract_image(): one map -> tidy records
+  download.py      download_images(): image URLs -> local .jpg files
+  ingest.py        rename_and_copy(): raw downloads -> named copies
   missing.py       find_missing_in_dir() / find_missing_in_dataset()
-  dataset.py       build_dataset() / load_temperatures() — corpus -> tidy data
+  dataset.py       build_dataset() / load_temperatures(): corpus -> tidy data
   cli.py           `slmet` command-line entry point
   data/stations.csv  bundled canonical station registry
   data/temperatures.csv  bundled tidy dataset (load_temperatures())
